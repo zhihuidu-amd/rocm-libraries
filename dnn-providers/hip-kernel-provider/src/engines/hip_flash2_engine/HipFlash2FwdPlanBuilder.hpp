@@ -60,16 +60,16 @@ struct Flash2FwdParams
     // fastest depends on how many CTAs the shape produces relative to the CU
     // count, so launch geometry is a per-plan property, not a constant.
     // blockDim/qPerCta MUST match how the selected .co was compiled.
-    std::string variantTag = "";   // "" = legacy single-kernel object
-    unsigned int blockDim  = 64;   // threads per CTA for the selected variant
-    unsigned int qPerCta   = 64;   // query rows covered by one CTA
+    std::string variantTag = ""; // "" = legacy single-kernel object
+    unsigned int blockDim = 64; // threads per CTA for the selected variant
+    unsigned int qPerCta = 64; // query rows covered by one CTA
 
     // ---- Split-K (flash-decoding) ------------------------------------------
     // Selected for grid-starved shapes. Execution is not yet plumbed through
     // execute(); the fields record the decision so the follow-up does not have
     // to re-derive it.
-    int    splitK         = 1;     // 1 = disabled (single pass)
-    size_t workspaceBytes = 0;     // 0 when splitK == 1
+    int splitK = 1; // 1 = disabled (single pass)
+    size_t workspaceBytes = 0; // 0 when splitK == 1
 
     // Architecture string determined at buildPlan() time
     std::string archString;

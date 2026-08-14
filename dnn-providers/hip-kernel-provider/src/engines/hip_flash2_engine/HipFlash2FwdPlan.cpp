@@ -107,8 +107,7 @@ void HipFlash2FwdPlan::execute(const Handle& handle,
     // -- 3. Grid dimensions ----------------------------------------------------
     // Tile size is a property of the SELECTED variant, not a constant.
     const unsigned int qPerCta = _params.qPerCta;
-    const unsigned int gridX =
-        (static_cast<unsigned>(_params.seq_len_q) + qPerCta - 1u) / qPerCta;
+    const unsigned int gridX = (static_cast<unsigned>(_params.seq_len_q) + qPerCta - 1u) / qPerCta;
     // Finding 3 fix: kernel decodes blockIdx.y=batch, blockIdx.z=head_q
     const unsigned int gridY = static_cast<unsigned>(_params.batch);
     const unsigned int gridZ = static_cast<unsigned>(_params.num_heads_q);

@@ -241,8 +241,7 @@ inline const char* flash2KernelName(int headDim)
 #define HIP_FLASH2_KERNEL_DIR "/opt/rocm/lib/hipdnn/engines/hip_flash2_kernels"
 #endif
 
-inline std::string flash2CoPath(const std::string& archId,
-                                const std::string& variantTag = "")
+inline std::string flash2CoPath(const std::string& archId, const std::string& variantTag = "")
 {
     // Prefer runtime env override so tests and non-standard installs work.
     const char* envDir = std::getenv("HIP_FLASH2_KERNEL_DIR");

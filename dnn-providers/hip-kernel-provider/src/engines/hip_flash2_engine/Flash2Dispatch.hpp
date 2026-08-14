@@ -38,14 +38,14 @@ namespace hip_flash2_engine
 /// reverse fails with hipErrorLaunchFailure (719).
 struct Flash2Variant
 {
-    const char*  tag;      ///< selects kernels/hip_flash2_fwd_<arch>_<tag>.co
+    const char* tag; ///< selects kernels/hip_flash2_fwd_<arch>_<tag>.co
     unsigned int blockDim; ///< threads per CTA (waves * 64)
-    unsigned int qPerCta;  ///< query rows per CTA (waves * queryGroups * 16)
+    unsigned int qPerCta; ///< query rows per CTA (waves * queryGroups * 16)
 };
 
 // Variants shipped for gfx942. Keep in sync with the kernels/ directory and
 // with the F2_WAVES / F2_QG / F2_KG values each object was built with.
-constexpr Flash2Variant K_FLASH2_W4Q1K4{"w4q1k4", 256, 64};  // tiny grids
+constexpr Flash2Variant K_FLASH2_W4Q1K4{"w4q1k4", 256, 64}; // tiny grids
 constexpr Flash2Variant K_FLASH2_W8Q1K4{"w8q1k4", 512, 128}; // short causal
 constexpr Flash2Variant K_FLASH2_W8Q2K4{"w8q2k4", 512, 256}; // general case
 constexpr Flash2Variant K_FLASH2_W8Q3K2{"w8q3k2", 512, 384}; // BK=32, long S
@@ -59,7 +59,7 @@ constexpr Flash2Variant K_FLASH2_LEGACY{"", 64, 64};
 struct Flash2Selection
 {
     Flash2Variant variant = K_FLASH2_W8Q2K4;
-    int           splitK  = 1; ///< 1 = single pass; >1 = partition the KV axis
+    int splitK = 1; ///< 1 = single pass; >1 = partition the KV axis
 };
 
 /// Number of CTAs a given queries-per-CTA tiling produces for this shape.
@@ -92,12 +92,14 @@ inline Flash2Selection selectFlash2Config(
     // full grid it costs up to 19%, and splitK=8 never won on any shape.
     if(ctas256 < scaled(128) && seqLenQ >= 1024 && headDim == 128)
     {
-        const long long denom  = (ctas256 > 0) ? ctas256 : 1;
-        long long       nsplit = (scaled(256) + denom - 1) / denom;
-        if(nsplit < 2) nsplit = 2;
-        if(nsplit > 4) nsplit = 4;
+        const long long denom = (ctas256 > 0) ? ctas256 : 1;
+        long long nsplit = (scaled(256) + denom - 1) / denom;
+        if(nsplit < 2)
+            nsplit = 2;
+        if(nsplit > 4)
+            nsplit = 4;
         sel.variant = K_FLASH2_W8Q2K4;
-        sel.splitK  = static_cast<int>(nsplit);
+        sel.splitK = static_cast<int>(nsplit);
         return sel;
     }
 
@@ -117,8 +119,8 @@ inline Flash2Selection selectFlash2Config(
     // only once S is long enough to amortize it.
     if(headDim == 64)
     {
-        sel.variant = (batch * numHeadsQ >= 64 && seqLenQ >= 4096) ? K_FLASH2_W8Q3K4
-                                                                   : K_FLASH2_W8Q2K4;
+        sel.variant
+            = (batch * numHeadsQ >= 64 && seqLenQ >= 4096) ? K_FLASH2_W8Q3K4 : K_FLASH2_W8Q2K4;
         return sel;
     }
 
@@ -151,15 +153,14 @@ inline Flash2Selection selectFlash2Config(
 /// Workspace bytes required for a split-K plan (0 when splitK == 1).
 /// Layout: fp32 partial outputs [B, H, splitK, Sq, D] followed by per-split
 /// softmax statistics m and l, each [B, H, splitK, Sq].
-inline size_t flash2WorkspaceBytes(
-    int batch, int numHeadsQ, int seqLenQ, int headDim, int splitK)
+inline size_t flash2WorkspaceBytes(int batch, int numHeadsQ, int seqLenQ, int headDim, int splitK)
 {
     if(splitK <= 1)
         return 0;
     const size_t rows = static_cast<size_t>(batch) * static_cast<size_t>(numHeadsQ)
                         * static_cast<size_t>(splitK) * static_cast<size_t>(seqLenQ);
     return rows * static_cast<size_t>(headDim) * sizeof(float) // partial O
-           + 2 * rows * sizeof(float);                          // per-split m and l
+           + 2 * rows * sizeof(float); // per-split m and l
 }
 
 } // namespace hip_flash2_engine

@@ -6,18 +6,18 @@
 #include <hipdnn_flatbuffers_sdk/data_objects/sdpa_attributes_generated.h>
 
 #include <cmath>
+#include <fstream>
 #include <hip_kernel_provider_common/HipDeviceUtils.hpp>
 #include <hipdnn_plugin_sdk/PluginLogging.hpp>
-#include <fstream>
 #include <stdexcept>
 
 // Finding 2 fix: include Utils.hpp so HIP_KERNEL_RETURN_FALSE_IF is defined
 #include "core/Utils.hpp"
 
 #include "../asm_sdpa_engine/plans/SdpaPlanUtils.hpp"
+#include "Flash2Dispatch.hpp"
 #include "HipFlash2FwdPlan.hpp"
 #include "HipFlash2FwdPlanBuilder_v2.hpp"
-#include "Flash2Dispatch.hpp"
 #include "HipFlash2KernelUtils.hpp"
 
 namespace hip_flash2_engine
@@ -223,7 +223,7 @@ void HipFlash2FwdPlanBuilder::buildPlan(const Handle& handle,
     // Split-K execution is not yet plumbed through execute() (it needs a second
     // merge launch plus a workspace pointer). Record the decision, run single
     // pass for now.
-    params.splitK         = 1;
+    params.splitK = 1;
     params.workspaceBytes = 0;
 
     std::string coPath = flash2CoPath(archId, sel.variant.tag);
@@ -232,18 +232,18 @@ void HipFlash2FwdPlanBuilder::buildPlan(const Handle& handle,
         if(probe.good())
         {
             params.variantTag = sel.variant.tag;
-            params.blockDim   = sel.variant.blockDim;
-            params.qPerCta    = sel.variant.qPerCta;
+            params.blockDim = sel.variant.blockDim;
+            params.qPerCta = sel.variant.qPerCta;
         }
         else
         {
             HIPDNN_PLUGIN_LOG_INFO("HipFlash2FwdPlanBuilder -- variant '"
                                    << sel.variant.tag
                                    << "' not installed, using legacy kernel object");
-            coPath            = flash2CoPath(archId);
+            coPath = flash2CoPath(archId);
             params.variantTag = K_FLASH2_LEGACY.tag;
-            params.blockDim   = K_FLASH2_LEGACY.blockDim;
-            params.qPerCta    = K_FLASH2_LEGACY.qPerCta;
+            params.blockDim = K_FLASH2_LEGACY.blockDim;
+            params.qPerCta = K_FLASH2_LEGACY.qPerCta;
         }
     }
     const char* funcName = flash2KernelName(params.head_dim);
