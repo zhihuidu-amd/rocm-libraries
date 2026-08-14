@@ -228,7 +228,7 @@ void HipFlash2FwdPlanBuilder::buildPlan(const Handle& handle,
 
     std::string coPath = flash2CoPath(archId, sel.variant.tag);
     {
-        std::ifstream probe(coPath, std::ios::binary);
+        const std::ifstream probe(coPath, std::ios::binary);
         if(probe.good())
         {
             params.variantTag = sel.variant.tag;
