@@ -98,9 +98,12 @@ inline Flash2Selection selectFlash2Config(
             nsplit = 2;
         if(nsplit > 4)
             nsplit = 4;
-        sel.variant = K_FLASH2_W8Q2K4;
+        // Record the split factor but do NOT return: the variant still has to
+        // be chosen by the rules below. Returning here pinned every starved
+        // shape to w8q2k4 and suppressed the tiny-grid rule underneath it
+        // (reported by S. Reeder). w8q2k4 was only ever the *partner* of
+        // splitK=4, not the right single-pass choice for these shapes.
         sel.splitK = static_cast<int>(nsplit);
-        return sel;
     }
 
     // --- Tiny grid: an 8-wave CTA cannot be filled at all -------------------
@@ -108,7 +111,11 @@ inline Flash2Selection selectFlash2Config(
     // Measured, the 8-wave variant still wins on merely-starved grids (185 vs
     // 110 TFLOPS) because the kernel is bandwidth-bound and smaller CTAs
     // multiply K/V re-reads. Only a genuinely tiny grid prefers 4 waves.
-    if(ctas256 < scaled(100))
+    // Test against the EFFECTIVE grid: split-K multiplies CTA count by splitK,
+    // so a shape that is starved single-pass may be perfectly full once split.
+    // B=1 H=8 S=2048 has 64 CTAs (starved) but 256 after splitK=4 -- and 256
+    // CTAs want the 8-wave variant, which is what we measured (191 TFLOPS).
+    if(ctas256 * sel.splitK < scaled(100))
     {
         sel.variant = K_FLASH2_W4Q1K4;
         return sel;

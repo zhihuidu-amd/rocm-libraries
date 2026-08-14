@@ -126,6 +126,39 @@ TEST(TestFlash2Dispatch, ThresholdsScaleWithCuCount)
     EXPECT_GE(small.splitK, 1);
 }
 
+// Regression: the split-K branch used to `return` immediately, which pinned
+// every starved shape to w8q2k4 and suppressed the tiny-grid rule below it.
+// splitK and the variant are independent decisions -- a shape can be both
+// starved enough to split AND small enough to want the 4-wave variant.
+TEST(TestFlash2Dispatch, SplitKDoesNotSuppressTinyGridVariant)
+{
+    // ct256 = 4 CTAs: far below the tiny-grid threshold of 100.
+    const Flash2Selection tiny = selectFlash2Config(1, 1, 1024, 128, false);
+    EXPECT_STREQ(tiny.variant.tag, "w4q1k4");
+    EXPECT_GT(tiny.splitK, 1) << "starved grid should still split";
+
+    // ct256 = 64 and splitK = 4 -> 256 effective CTAs, which is NOT tiny.
+    // The tiny-grid rule tests the effective grid, so this keeps the 8-wave
+    // variant -- the pairing we actually measured at 191 TFLOPS.
+    const Flash2Selection split = selectFlash2Config(1, 8, 2048, 128, false);
+    EXPECT_STREQ(split.variant.tag, "w8q2k4");
+    EXPECT_EQ(split.splitK, 4);
+
+    // ct256 = 128: fills the GPU, so neither rule fires.
+    const Flash2Selection full = selectFlash2Config(1, 8, 4096, 128, false);
+    EXPECT_EQ(full.splitK, 1);
+}
+
+TEST(TestFlash2Dispatch, SplitKOnlyForLongD128Sequences)
+{
+    // head_dim 64 has no split-K kernel.
+    EXPECT_EQ(selectFlash2Config(1, 2, 2048, 64, false).splitK, 1);
+    // Short sequences are not worth the merge pass.
+    EXPECT_EQ(selectFlash2Config(1, 2, 512, 128, false).splitK, 1);
+    // Split factor is clamped to [2, 4]; 8 never won on any measured shape.
+    EXPECT_LE(selectFlash2Config(1, 1, 2048, 128, false).splitK, 4);
+}
+
 TEST(TestFlash2Dispatch, CtaCountAccountsForBatchHeadsAndSequence)
 {
     // ceil(2048/256) * 2 * 16 = 8 * 32 = 256

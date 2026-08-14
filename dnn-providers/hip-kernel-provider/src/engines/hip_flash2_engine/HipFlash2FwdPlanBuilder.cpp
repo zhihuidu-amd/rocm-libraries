@@ -267,6 +267,39 @@ void HipFlash2FwdPlanBuilder::buildPlan(const Handle& handle,
         throw std::runtime_error(msg);
     }
 
+    // Verify the object was actually built with the geometry the variant table
+    // claims. The file probe above only proves a file exists at that path --
+    // it says nothing about how the object was compiled. A mismatch is not
+    // benign: a 64-thread object launched with 512 threads fails every launch
+    // with hipError 719, and the reverse computes silently wrong results.
+    // (S. Reeder demonstrated the first case by copying the legacy 64-thread
+    // .co over the five variant names: the suite went 6/6 to 0/6, all 719.)
+    if(!params.variantTag.empty())
+    {
+        int maxThreads = 0;
+        const hipError_t attrErr = hipFuncGetAttribute(
+            &maxThreads, HIP_FUNC_ATTRIBUTE_MAX_THREADS_PER_BLOCK, kernelOpt->function());
+        if(attrErr != hipSuccess)
+        {
+            const std::string msg
+                = "HipFlash2FwdPlanBuilder::buildPlan -- hipFuncGetAttribute failed for " + coPath
+                  + ": " + std::string(hipGetErrorString(attrErr));
+            HIPDNN_PLUGIN_LOG_ERROR(msg);
+            throw std::runtime_error(msg);
+        }
+        if(maxThreads < static_cast<int>(params.blockDim))
+        {
+            const std::string msg
+                = "HipFlash2FwdPlanBuilder::buildPlan -- variant '" + params.variantTag
+                  + "' geometry mismatch: " + coPath + " was built for at most "
+                  + std::to_string(maxThreads) + " threads/block but the variant table claims "
+                  + std::to_string(params.blockDim)
+                  + ". The installed kernel object does not match the variant it is named for.";
+            HIPDNN_PLUGIN_LOG_ERROR(msg);
+            throw std::runtime_error(msg);
+        }
+    }
+
     executionContext.setPlan(
         std::make_unique<HipFlash2FwdPlan>(std::move(*kernelOpt), std::move(params)));
 }
