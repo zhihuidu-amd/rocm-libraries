@@ -8,6 +8,7 @@
 #include <cmath>
 #include <hip_kernel_provider_common/HipDeviceUtils.hpp>
 #include <hipdnn_plugin_sdk/PluginLogging.hpp>
+#include <fstream>
 #include <stdexcept>
 
 // Finding 2 fix: include Utils.hpp so HIP_KERNEL_RETURN_FALSE_IF is defined
@@ -16,6 +17,7 @@
 #include "../asm_sdpa_engine/plans/SdpaPlanUtils.hpp"
 #include "HipFlash2FwdPlan.hpp"
 #include "HipFlash2FwdPlanBuilder_v2.hpp"
+#include "Flash2Dispatch.hpp"
 #include "HipFlash2KernelUtils.hpp"
 
 namespace hip_flash2_engine
@@ -195,7 +197,55 @@ void HipFlash2FwdPlanBuilder::buildPlan(const Handle& handle,
     Flash2FwdParams params = extractParams(handle, opGraph);
     params.archString = archId;
 
-    const std::string coPath = flash2CoPath(archId);
+    // ---- Select the kernel variant for this shape --------------------------
+    // Falls back to the legacy single-kernel object when a per-variant .co is
+    // not installed, so an engine built from an older kernels/ directory keeps
+    // exactly its previous behaviour. This makes the dispatcher inert until a
+    // matching variant set is shipped -- it cannot regress the current engine.
+    int cuCount = 304; // gfx942 default; overridden from the device below
+    {
+        hipDeviceProp_t prop{};
+        int dev = 0;
+        if(hipGetDevice(&dev) == hipSuccess && hipGetDeviceProperties(&prop, dev) == hipSuccess
+           && prop.multiProcessorCount > 0)
+        {
+            cuCount = prop.multiProcessorCount;
+        }
+    }
+
+    const Flash2Selection sel = selectFlash2Config(params.batch,
+                                                   params.num_heads_q,
+                                                   params.seq_len_q,
+                                                   params.head_dim,
+                                                   params.causal,
+                                                   cuCount);
+
+    // Split-K execution is not yet plumbed through execute() (it needs a second
+    // merge launch plus a workspace pointer). Record the decision, run single
+    // pass for now.
+    params.splitK         = 1;
+    params.workspaceBytes = 0;
+
+    std::string coPath = flash2CoPath(archId, sel.variant.tag);
+    {
+        std::ifstream probe(coPath, std::ios::binary);
+        if(probe.good())
+        {
+            params.variantTag = sel.variant.tag;
+            params.blockDim   = sel.variant.blockDim;
+            params.qPerCta    = sel.variant.qPerCta;
+        }
+        else
+        {
+            HIPDNN_PLUGIN_LOG_INFO("HipFlash2FwdPlanBuilder -- variant '"
+                                   << sel.variant.tag
+                                   << "' not installed, using legacy kernel object");
+            coPath            = flash2CoPath(archId);
+            params.variantTag = K_FLASH2_LEGACY.tag;
+            params.blockDim   = K_FLASH2_LEGACY.blockDim;
+            params.qPerCta    = K_FLASH2_LEGACY.qPerCta;
+        }
+    }
     const char* funcName = flash2KernelName(params.head_dim);
     if(funcName == nullptr)
     {
