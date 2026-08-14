@@ -147,7 +147,9 @@ if(ENABLE_HIP_FLASH2_ENGINE)
             list(APPEND _f2_targets ${_co})
         endforeach()
 
-        add_custom_target(hip_flash2_variants DEPENDS ${_f2_targets})
+        add_custom_target(hip_flash2_variants
+            DEPENDS ${_f2_targets}
+            COMMENT "Regenerating all Flash2 kernel variant objects")
     endif()
 
     # Install any variant objects that are present. The engine falls back to
